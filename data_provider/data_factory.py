@@ -1,5 +1,5 @@
 from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_M4, PSMSegLoader, \
-    MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader
+    MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader, Dataset_transformer_daily
 from data_provider.uea import collate_fn
 from torch.utils.data import DataLoader
 
@@ -15,11 +15,12 @@ data_dict = {
     'SMAP': SMAPSegLoader,
     'SMD': SMDSegLoader,
     'SWAT': SWATSegLoader,
-    'UEA': UEAloader
+    'UEA': UEAloader,
+    'Transformer': Dataset_transformer_daily
 }
 
 
-def data_provider(args, flag):
+def data_provider(args, flag, file_list):
     Data = data_dict[args.data]
     timeenc = 0 if args.embed != 'timeF' else 1
 
@@ -67,14 +68,14 @@ def data_provider(args, flag):
         data_set = Data(
             args = args,
             root_path=args.root_path,
-            data_path=args.data_path,
+            file_list=args.file_list,
             flag=flag,
             size=[args.seq_len, args.label_len, args.pred_len],
             features=args.features,
             target=args.target,
             timeenc=timeenc,
-            freq=freq,
-            seasonal_patterns=args.seasonal_patterns
+            seasonal_patterns=args.seasonal_patterns,
+            freq=freq
         )
         print(flag, len(data_set))
         data_loader = DataLoader(

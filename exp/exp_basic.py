@@ -53,7 +53,7 @@ class Exp_Basic(object):
         return None
 
     def _acquire_device(self):
-        if self.args.use_gpu and self.args.gpu_type == 'cuda':
+        '''  if self.args.use_gpu and self.args.gpu_type == 'cuda':
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.args.gpu) if not self.args.use_multi_gpu else self.args.devices
             device = torch.device('cuda:{}'.format(self.args.gpu))
@@ -63,8 +63,8 @@ class Exp_Basic(object):
             print('Use GPU: mps')
         else:
             device = torch.device('cpu')
-            print('Use CPU')
-        return device
+            print('Use CPU')'''
+        return torch.device('cpu')
 
     def _get_data(self):
         pass

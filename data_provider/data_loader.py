@@ -17,83 +17,229 @@ warnings.filterwarnings('ignore')
 
 
 class Dataset_ETT_hour(Dataset):
-    def __init__(self, args, root_path, flag='train', size=None,
-                 features='S', data_path='ETTh1.csv',
-                 target='OT', scale=True, timeenc=0, freq='h', seasonal_patterns=None):
-        # size [seq_len, label_len, pred_len]
+    def __init__(self, args, root_path, file_list, flag='train', size=None,
+                 features='S', target='MAIN: Carbon Dioxide (ppm)', scale=True, timeenc=0, freq='h',
+                 seasonal_patterns=None):
         self.args = args
-        # info
-        if size == None:
-            self.seq_len = 24 * 4 * 4
-            self.label_len = 24 * 4
-            self.pred_len = 24 * 4
-        else:
-            self.seq_len = size[0]
-            self.label_len = size[1]
-            self.pred_len = size[2]
-        # init
-        assert flag in ['train', 'test', 'val']
-        type_map = {'train': 0, 'val': 1, 'test': 2}
-        self.set_type = type_map[flag]
-
+        self.root_path = root_path
+        self.file_list = file_list
+        self.flag = flag
         self.features = features
         self.target = target
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.seasonal_patterns = seasonal_patterns
 
-        self.root_path = root_path
-        self.data_path = data_path
-        self.__read_data__()
-
-    def __read_data__(self):
-        self.scaler = StandardScaler()
-        df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
-
-        border1s = [0, 12 * 30 * 24 - self.seq_len, 12 * 30 * 24 + 4 * 30 * 24 - self.seq_len]
-        border2s = [12 * 30 * 24, 12 * 30 * 24 + 4 * 30 * 24, 12 * 30 * 24 + 8 * 30 * 24]
-        border1 = border1s[self.set_type]
-        border2 = border2s[self.set_type]
-
-        if self.features == 'M' or self.features == 'MS':
-            cols_data = df_raw.columns[1:]
-            df_data = df_raw[cols_data]
-        elif self.features == 'S':
-            df_data = df_raw[[self.target]]
-
-        if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
-            self.scaler.fit(train_data.values)
-            data = self.scaler.transform(df_data.values)
+        # Zaman serisi uzunlukları (Varsayılan: 30 gün giriş, 15 gün label, 30 gün tahmin)
+        if size is None:
+            self.seq_len = 30
+            self.label_len = 15
+            self.pred_len = 30
         else:
-            data = df_data.values
+            self.seq_len, self.label_len, self.pred_len = size
 
-        df_stamp = df_raw[['date']][border1:border2]
-        df_stamp['date'] = pd.to_datetime(df_stamp.date)
-        if self.timeenc == 0:
-            df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp['day'] = df_stamp.date.apply(lambda row: row.day, 1)
-            df_stamp['weekday'] = df_stamp.date.apply(lambda row: row.weekday(), 1)
-            df_stamp['hour'] = df_stamp.date.apply(lambda row: row.hour, 1)
-            data_stamp = df_stamp.drop(['date'], 1).values
-        elif self.timeenc == 1:
-            data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
-            data_stamp = data_stamp.transpose(1, 0) 
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train': 0, 'val': 1, 'test': 2}
+        self.set_type = type_map[flag]
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
+        self.scaler = StandardScaler()
+        self.data_x, self.data_y, self.data_stamp = self.__read_all_files__()
 
-        if self.set_type == 0 and self.args.augmentation_ratio > 0:
-            self.data_x, self.data_y, augmentation_tags = run_augmentation_single(self.data_x, self.data_y, self.args)
+    def __read_all_files__(self):
+        all_data_x, all_data_y, all_stamps = [], [], []
 
-        self.data_stamp = data_stamp
+        for file in self.file_list:
+
+            df_raw = pd.read_csv(os.path.join(self.root_path, file), sep=';', engine='python')
+
+            # 2️⃣ Tarih sütununu datetime formatına çevir
+            df_raw['date'] = pd.to_datetime(df_raw['date'], dayfirst=True, errors='coerce')
+
+            # 3️⃣ Sayısal sütunları belirle
+            numeric_cols = df_raw.columns[1:]
+
+            # 4️⃣ ',' olan ondalıkları '.' yap ve float çevir
+            df_raw[numeric_cols] = df_raw[numeric_cols].astype(str).replace(',', '.', regex=True).apply(pd.to_numeric,
+                                                                                                        errors='coerce')
+
+            # 5️⃣ Beklenen sütunların tam olduğundan emin ol
+            expected_columns = ["date", "MAIN: Hydrogen (ppm)", "MAIN: Methane (ppm)",
+                                "MAIN: Acetylene (ppm)", "MAIN: Ethylene (ppm)",
+                                "MAIN: Ethane (ppm)", "MAIN: Carbon Monoxide (ppm)", "MAIN: Carbon Dioxide (ppm)"]
+            df_raw = df_raw.reindex(columns=expected_columns)
+
+            # 6️⃣ Train/Validation/Test bölme
+            file_length = len(df_raw)
+            train_size = int(file_length * 0.7)
+            val_size = int(file_length * 0.2)
+            test_size = file_length - train_size - val_size
+
+            border1s = [0, train_size, train_size + val_size]
+            border2s = [train_size, train_size + val_size, file_length]
+            border1 = border1s[self.set_type]
+            border2 = border2s[self.set_type]
+
+            # 7️⃣ Train/Val/Test bölümleri al
+            df_data = df_raw.iloc[:, 1:]  # Tarih hariç tüm sütunlar
+
+            if self.scale:
+                # **Sadece Train set üzerinden ölçeklendirme yap**
+                self.scaler.fit(df_data.iloc[:train_size].values)
+                data = self.scaler.transform(df_data.values)
+            else:
+                data = df_data.values
+
+            df_stamp = df_raw[['date']][border1:border2]
+            df_stamp['date'] = pd.to_datetime(df_stamp['date'])
+
+            if self.timeenc == 0:
+                df_stamp['month'] = df_stamp['date'].apply(lambda row: row.month)
+                df_stamp['day'] = df_stamp['date'].apply(lambda row: row.day)
+                df_stamp['weekday'] = df_stamp['date'].apply(lambda row: row.weekday())
+                df_stamp['hour'] = df_stamp['date'].apply(lambda row: row.hour)
+                data_stamp = df_stamp.drop(['date'], axis=1).values
+            else:
+                data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq).T
+
+            if border1 < border2:
+                all_data_x.append(data[border1:border2])
+                all_data_y.append(data[border1:border2])
+                all_stamps.append(data_stamp)
+
+        # **Tüm dosyalardan gelen verileri birleştir**
+        if all_data_x:
+            data_x = np.concatenate(all_data_x, axis=0)
+            data_y = np.concatenate(all_data_y, axis=0)
+            data_stamp = np.concatenate(all_stamps, axis=0)
+        else:
+            data_x, data_y, data_stamp = np.array([]), np.array([]), np.array([])
+
+        return data_x, data_y, data_stamp
 
     def __getitem__(self, index):
         s_begin = index
         s_end = s_begin + self.seq_len
         r_begin = s_end - self.label_len
         r_end = r_begin + self.label_len + self.pred_len
+
+        if s_end > len(self.data_x) or r_end > len(self.data_y):
+            raise IndexError("Index out of range")
+
+        seq_x = self.data_x[s_begin:s_end]
+        seq_y = self.data_y[r_begin:r_end]
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+
+    def __len__(self):
+        return len(self.data_x) - self.seq_len - self.pred_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
+class Dataset_transformer_daily(Dataset):
+    def __init__(self, args, root_path, file_list, flag='train', size=None,
+                 features='S', target='MAIN: Carbon Dioxide (ppm)', scale=True, timeenc=0, freq='h',
+                 seasonal_patterns=None):
+        self.args = args
+        self.root_path = root_path
+        self.file_list = file_list
+        self.flag = flag
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.timeenc = timeenc
+        self.freq = freq
+        self.seasonal_patterns = seasonal_patterns
+
+        if size is None:
+            self.seq_len = 30
+            self.label_len = 15
+            self.pred_len = 30
+        else:
+            self.seq_len, self.label_len, self.pred_len = size
+
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train': 0, 'val': 1, 'test': 2}
+        self.set_type = type_map[flag]
+
+        self.scaler = StandardScaler()
+        self.data_x, self.data_y, self.data_stamp = self.__read_all_files__()
+
+    def __read_all_files__(self):
+        all_data_x, all_data_y, all_stamps = [], [], []
+
+        for file in self.file_list:
+            file_path = os.path.join(self.root_path, file)
+
+            if not os.path.exists(file_path):
+                print(f" Warning: {file} not found in {self.root_path}")
+                continue
+
+            # preprocess data
+            df_raw = pd.read_csv(file_path, sep=';', engine='python')
+            if 'date' in df_raw.columns:
+                df_raw['date'] = pd.to_datetime(df_raw['date'], errors='coerce')
+            else:
+                raise ValueError(f"Error: 'date' column not found in {file}")
+            numeric_cols = df_raw.columns[1:]
+            df_raw[numeric_cols] = df_raw[numeric_cols].astype(str).replace(',', '.', regex=True)
+            df_raw[numeric_cols] = df_raw[numeric_cols].apply(pd.to_numeric, errors='coerce')
+            expected_columns = ["date", "MAIN: Hydrogen (ppm)", "MAIN: Methane (ppm)",
+                                "MAIN: Acetylene (ppm)", "MAIN: Ethylene (ppm)",
+                                "MAIN: Ethane (ppm)", "MAIN: Carbon Monoxide (ppm)", "MAIN: Carbon Dioxide (ppm)"]
+            df_raw = df_raw.reindex(columns=expected_columns)
+
+            # Train/Val/Test seperation
+            file_length = len(df_raw)
+            train_size = int(file_length * 0.7)
+            val_size = int(file_length * 0.2)
+            test_size = file_length - train_size - val_size
+
+            border1s = [0, train_size, train_size + val_size]
+            border2s = [train_size, train_size + val_size, file_length]
+            border1 = border1s[self.set_type]
+            border2 = border2s[self.set_type]
+
+            df_data = df_raw.iloc[:, 1:] if self.features in ['M', 'MS'] else df_raw[[self.target]]
+
+            if self.scale:
+                self.scaler.fit(df_data.iloc[:train_size].values)
+                data = self.scaler.transform(df_data.values)
+            else:
+                data = df_data.values
+
+            df_stamp = df_raw[['date']][border1:border2]
+            df_stamp['month'] = df_stamp['date'].apply(lambda row: row.month)
+            df_stamp['day'] = df_stamp['date'].apply(lambda row: row.day)
+            df_stamp['weekday'] = df_stamp['date'].apply(lambda row: row.weekday())
+            df_stamp['hour'] = df_stamp['date'].apply(lambda row: row.hour)
+            data_stamp = df_stamp.drop(['date'], axis=1).values
+
+            if border1 < border2:
+                all_data_x.append(data[border1:border2])
+                all_data_y.append(data[border1:border2])
+                all_stamps.append(data_stamp)
+
+        # concatenate all files
+        if all_data_x:
+            data_x = np.concatenate(all_data_x, axis=0)
+            data_y = np.concatenate(all_data_y, axis=0)
+            data_stamp = np.concatenate(all_stamps, axis=0)
+        else:
+            data_x, data_y, data_stamp = np.array([]), np.array([]), np.array([])
+
+        return data_x, data_y, data_stamp
+
+    def __getitem__(self, index):
+        s_begin = index
+        s_end = s_begin + self.seq_len
+        r_begin = s_end - self.label_len
+        r_end = r_begin + self.label_len + self.pred_len
+
+        if s_end > len(self.data_x) or r_end > len(self.data_y):
+            raise IndexError("Index out of range")
 
         seq_x = self.data_x[s_begin:s_end]
         seq_y = self.data_y[r_begin:r_end]
@@ -236,6 +382,7 @@ class Dataset_Custom(Dataset):
 
     def __read_data__(self):
         self.scaler = StandardScaler()
+
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
 

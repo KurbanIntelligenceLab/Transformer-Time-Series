@@ -32,7 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
     #parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
     parser.add_argument('--file_list', nargs="+",
-                        default=[f for f in os.listdir("./dataset/ETT-small/") if f.endswith('.csv')],
+                        default=[f for f in os.listdir("./dataset/transformers/") if f.endswith('.csv')],
                         help='List of CSV files to use from dataset')
 
     parser.add_argument('--features', type=str, default='M',

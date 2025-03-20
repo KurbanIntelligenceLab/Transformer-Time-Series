@@ -170,7 +170,7 @@ class Dataset_transformer_daily(Dataset):
 
             file_length = len(df_raw)
             train_size = int(file_length * 0.7)
-            val_size = int(file_length * 0.2)
+            val_size = int(file_length * 0.15)
             test_size = file_length - train_size - val_size
             sample_size = (self.seq_len + self.pred_len)
 

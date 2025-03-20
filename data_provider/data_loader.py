@@ -192,12 +192,10 @@ class Dataset_transformer_daily(Dataset):
                 data = df_data.values
 
             df_stamp = df_raw[['date']][border1:border2]
-            df_stamp['month'] = df_stamp['date'].apply(lambda row: row.month)
-            df_stamp['day'] = df_stamp['date'].apply(lambda row: row.day)
-            df_stamp['weekday'] = df_stamp['date'].apply(lambda row: row.weekday())
-            df_stamp['hour'] = df_stamp['date'].apply(lambda row: row.hour)
-            data_stamp = (df_stamp.drop(['date'], axis=1).astype('float32'))
-            data_stamp = data_stamp.values
+            df_stamp['date'] = pd.to_datetime(df_stamp.date)
+            data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
+            data_stamp = data_stamp.transpose(1, 0)
+
 
             end_index = start_index + (border2 - border1) - sample_size - 1
             self.file_start_end.append((start_index, end_index, file))

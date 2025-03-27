@@ -38,7 +38,7 @@ for FILE in "${FILE_LIST[@]}"; do
     FILE_ARGS+=" $FILE"
 done
 
-for pred_len in 30 60 120; do
+for pred_len in 30 60 90 120; do
   echo "NOW RUNNING FOR pred_len:" ${pred_len}
 
   python -u run.py \

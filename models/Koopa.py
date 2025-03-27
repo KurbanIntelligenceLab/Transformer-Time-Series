@@ -157,7 +157,7 @@ class TimeVarKP(nn.Module):
                  enc_in=8,
                  input_len=96,
                  pred_len=96,
-                 seg_len=24,
+                 seg_len=15,
                  dynamic_dim=128,
                  encoder=None,
                  decoder=None,
@@ -299,7 +299,7 @@ class Model(nn.Module):
         """
         get shared frequency spectrums
         """
-        train_data, train_loader = data_provider(configs, 'train')
+        train_data, train_loader = data_provider(configs, 'train', configs.file_list)
         amps = 0.0
         for data in train_loader:
             lookback_window = data[0]

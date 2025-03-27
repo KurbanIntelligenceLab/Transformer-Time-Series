@@ -41,7 +41,7 @@ class Model(nn.Module):
     Paper link: https://arxiv.org/abs/2207.01186
     """
 
-    def __init__(self, configs, chunk_size=24):
+    def __init__(self, configs, chunk_size=15):
         """
         chunk_size: int, reshape T into [num_chunks, chunk_size]
         """

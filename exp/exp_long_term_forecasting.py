@@ -45,7 +45,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         total_loss = []
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
 
@@ -101,7 +101,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, _) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
                 batch_x = batch_x.float().to(self.device)
@@ -175,13 +175,14 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         preds = []
         trues = []
+        inputs = []
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, scaler) in enumerate(test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
@@ -207,31 +208,36 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     shape = batch_y.shape
                     if outputs.shape[-1] != batch_y.shape[-1]:
                         outputs = np.tile(outputs, [1, 1, int(batch_y.shape[-1] / outputs.shape[-1])])
-                    outputs = test_data.inverse_transform(outputs.reshape(shape[0] * shape[1], -1)).reshape(shape)
-                    batch_y = test_data.inverse_transform(batch_y.reshape(shape[0] * shape[1], -1)).reshape(shape)
-
+                    outputs = test_data.scalers[scaler[0]].inverse_transform(outputs.reshape(shape[0] * shape[1], -1)).reshape(shape)
+                    batch_y = test_data.scalers[scaler[0]].inverse_transform(batch_y.reshape(shape[0] * shape[1], -1)).reshape(shape)
+                    assert (batch_y >= 0).any()
                 outputs = outputs[:, :, f_dim:]
                 batch_y = batch_y[:, :, f_dim:]
 
                 pred = outputs
                 true = batch_y
 
+                input = batch_x.detach().cpu().numpy()
+                if test_data.scale and self.args.inverse:
+                    shape = input.shape
+                    input = test_data.scalers[scaler[0]].inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
+
+                inputs.append(input)
                 preds.append(pred)
                 trues.append(true)
+
                 if i % 20 == 0:
-                    input = batch_x.detach().cpu().numpy()
-                    if test_data.scale and self.args.inverse:
-                        shape = input.shape
-                        input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
                     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
+        inputs = np.concatenate(inputs, axis=0)
         print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
+        inputs = inputs.reshape(-1, inputs.shape[-2], inputs.shape[-1])
         print('test shape:', preds.shape, trues.shape)
 
         # result save
@@ -263,8 +269,17 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         f.write('\n')
         f.close()
 
-        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        np.save(folder_path + 'pred.npy', preds)
-        np.save(folder_path + 'true.npy', trues)
+        file_indexes = test_data.file_start_end
+
+        np.save(os.path.join(folder_path, 'metrics.npy'),
+                np.array([mae, mse, rmse, mape, mspe]))
+
+        for start, end, fname in file_indexes:
+            base = os.path.splitext(fname)[0]
+            root_path = os.path.join(folder_path, base)
+            os.makedirs(root_path, exist_ok=True)
+            np.save(os.path.join(root_path, "pred.npy"), preds[start:end])
+            np.save(os.path.join(root_path, "true.npy"), trues[start:end])
+            np.save(os.path.join(root_path, "input.npy"), inputs[start:end])
 
         return

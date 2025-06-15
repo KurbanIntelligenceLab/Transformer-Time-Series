@@ -139,7 +139,7 @@ class Dataset_transformer_daily(Dataset):
         type_map = {'train': 0, 'val': 1, 'test': 2}
         self.set_type = type_map[flag]
 
-        self.scaler = StandardScaler()
+        self.scalers = []
         self.data_files = self.__read_all_files__()
         self.total_length = sum(len(data['x']) for data in self.data_files)
 
@@ -186,8 +186,10 @@ class Dataset_transformer_daily(Dataset):
             df_data = df_raw.iloc[:, 1:] if self.features in ['M', 'MS'] else df_raw[[self.target]]
 
             if self.scale:
-                self.scaler.fit(df_data.iloc[:train_size].values)
-                data = self.scaler.transform(df_data.values)
+                scaler = StandardScaler()
+                scaler.fit(df_data.iloc[:train_size].values)
+                data = scaler.transform(df_data.values)
+                self.scalers.append(scaler)
             else:
                 data = df_data.values
 
@@ -222,8 +224,7 @@ class Dataset_transformer_daily(Dataset):
                 seq_y = self.data_files[i]['y'][r_begin:r_end]
                 seq_x_mark = self.data_files[i]['stamp'][s_begin:s_end]
                 seq_y_mark = self.data_files[i]['stamp'][r_begin:r_end]
-
-                return seq_x, seq_y, seq_x_mark, seq_y_mark
+                return seq_x, seq_y, seq_x_mark, seq_y_mark, i
 
     def __len__(self):
         return self.file_start_end[-1][1]

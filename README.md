@@ -14,15 +14,7 @@ The pipeline of the proposed framework consists of data collection from transfor
 </p>
 
  The PAttn model consists of three different components:
-patching, projection, and a single-layer attention mechanism
-
-
-## Data
-The data used for this study can be downloaded from: [OneDrive](https://indiana-my.sharepoint.com/:u:/g/personal/meocakir_iu_edu/EZhjgHwuw1BDlE6AQHBk8m8B42_WykHjwViLyh3Rvm-SwQ?e=KCKGi8)
-
-All the csv files should be put under `dataset/transformers`
-
-To reproduce the results presented in our paper, execute the script: `scripts/run_transformer_training.sh`.
+patching, projection, and a single-layer attention mechanism.
 
 
 ## Leaderboard
@@ -51,6 +43,13 @@ To reproduce the results presented in our paper, execute the script: `scripts/ru
 | PatchTST      | _0.429_           | 0.365             | 0.643             | 0.461             | 0.888             | 0.570             | 1.020             | 0.625             |
 | PAttn         | **0.424**         | _0.359_           | _0.642_           | 0.465             | **0.853**         | 0.578             | _0.959_           | 0.622             |
 
+
+## Data
+The data used for this study can be downloaded from: [OneDrive](https://indiana-my.sharepoint.com/:u:/g/personal/meocakir_iu_edu/EZhjgHwuw1BDlE6AQHBk8m8B42_WykHjwViLyh3Rvm-SwQ?e=KCKGi8)
+
+All the csv files should be put under `dataset/transformers`
+
+To reproduce the results presented in our paper, execute the script: `scripts/run_transformer_training.sh`.
 
 
 * List of models that are included in this repository. 

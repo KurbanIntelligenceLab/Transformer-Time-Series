@@ -1,6 +1,16 @@
 # Benchmarking Artificial Intelligence Models for Dissolved Gas Forecasting in Power Transformers
 This repository builds upon the [TSLib](https://github.com/thuml/Time-Series-Library) framework. For details regarding environment setup and baseline implementations, please refer to the original TSLib repository.
-
+## Architecture Overview
+<p align="center">
+  <img src="pic/Transformer_plan.png" alt="Framework Pipeline" width="100%"/>
+</p>
+The pipeline of the proposed framework consists of data collection from transformers, Data Preprocessing, Data Partition, Model Training and Model Evaluation.
+7 gas features across different forecast horizons.
+<p align="center">
+  <img src="pic/PAttnArch.png" alt="PAttn Architecture" width="100%"/>
+</p>
+The PAttn model consists of three different components:
+patching, projection, and a single-layer attention mechanism
 ## Data
 The data used for this study can be downloaded from: [OneDrive](https://indiana-my.sharepoint.com/:u:/g/personal/meocakir_iu_edu/EZhjgHwuw1BDlE6AQHBk8m8B42_WykHjwViLyh3Rvm-SwQ?e=KCKGi8)
 

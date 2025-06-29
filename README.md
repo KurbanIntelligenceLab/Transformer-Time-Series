@@ -51,7 +51,7 @@ All the csv files should be put under `dataset/transformers`
 
 To reproduce the results presented in our paper, execute the script: `scripts/run_transformer_training.sh`.
 
-
+## Models
 * List of models that are included in this repository. 
 
   - [x] **TimeXer** - TimeXer: Empowering Transformers for Time Series Forecasting with Exogenous Variables [[NeurIPS 2024]](https://arxiv.org/abs/2402.19072) [[Code]](https://github.com/thuml/Time-Series-Library/blob/main/models/TimeXer.py)

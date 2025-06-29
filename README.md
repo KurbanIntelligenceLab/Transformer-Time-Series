@@ -1,5 +1,4 @@
-# A State-of-the-Art Open-Source Benchmarking Framework for AI-Based Dissolved Gas Forecasting in Power Transformers: Algorithms, Limitations &  Recommendations
-
+# Benchmarking Artificial Intelligence Models for Dissolved Gas Forecasting in Power Transformers
 This repository builds upon the [TSLib](https://github.com/thuml/Time-Series-Library) framework. For details regarding environment setup and baseline implementations, please refer to the original TSLib repository.
 
 ## Data
